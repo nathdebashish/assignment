@@ -1,0 +1,6 @@
+approach
+
+1. task are put to queue
+2. task are picked from queue , by other executor
+3. if already executor has task executing of same group UUID. it wait's for existing task to finish, before picking this new task
+4. Task gets completed by CompletionService and available to client
