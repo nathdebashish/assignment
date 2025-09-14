@@ -1,0 +1,5 @@
+This approach is not for submission and only created as alternate approach.
+
+approach for assigment
+
+Each task group has different CompletionService to handle it's work. so multiple tasks of same group are not picked for execution
