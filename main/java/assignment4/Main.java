@@ -1,4 +1,4 @@
-package assignment2;
+package assignment4;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -27,8 +27,7 @@ public class Main {
             UUID taskUUID,
             Main.TaskGroup taskGroup,
             Main.TaskType taskType,
-            Callable<T> taskAction,
-            int priority
+            Callable<T> taskAction
     ) {
         public Task {
             if (taskUUID == null || taskGroup == null || taskType == null || taskAction == null) {
@@ -37,11 +36,11 @@ public class Main {
         }
     }
 
-    public static class TaskAction implements Callable<Main.Task> {
+    public static class TaskAction implements Callable<Task> {
         private String name;
         private UUID uuid;
         private int sleep;
-        private Main.Task task;
+        private Task task;
 
         TaskAction(String name, UUID uuid, int sleep) {
             this.name = name;
@@ -49,15 +48,14 @@ public class Main {
             this.sleep = sleep;
         }
 
-        public void setTask(Main.Task task) {
+        public void setTask(Task task) {
             this.task = task;
         }
 
         @Override
-        public Main.Task call() {
+        public Task call() {
             try {
                 Thread.sleep(sleep);
-                System.out.println(name + " slept " + sleep);
             } catch (InterruptedException ex) {}
             boolean s = taskGroupUUIDSet.remove(uuid);
             return task;
@@ -81,7 +79,7 @@ public class Main {
         public TaskExecutorSvc() {
             pickerExecutor = Executors.newFixedThreadPool(1);
             taskCompletetionSvc = new ExecutorCompletionService(Executors.newFixedThreadPool(concurentCount));
-            pickerExecutor.execute(new Main.TaskExecutorSvc.TaskPicker());
+            pickerExecutor.execute(new TaskPicker());
         }
 
         private volatile boolean isStop = false;
@@ -100,32 +98,23 @@ public class Main {
         }
 
         //api exposed , called by client to get task as each task are completed.
-        public Main.Task getResult() throws InterruptedException, ExecutionException {
-            Main.Task taskCompleted = (Main.Task) taskCompletetionSvc.take().get();//take is BLOCKING call, so if task not completed, it will wait.
+        public Task getResult() throws InterruptedException, ExecutionException {
+            Task taskCompleted = (Task) taskCompletetionSvc.take().get();//take is BLOCKING call, so if task not completed, it will wait.
             return taskCompleted;
         }
 
         //Utility class for holding task and it's associated Future, from initial Task submission.
         private static class CompletableFutureTask {
             CompletableFuture future;
-            Main.Task task;
-            public CompletableFutureTask(Main.Task task, CompletableFuture future) {
+            Task task;
+            public CompletableFutureTask(Task task, CompletableFuture future) {
                 this.future = future;
                 this.task = task;
             }
         }
 
-        private class TaskComparator implements Comparator<Main.TaskExecutorSvc.CompletableFutureTask> {
-
-
-            @Override
-            public int compare(CompletableFutureTask o1, CompletableFutureTask o2) {
-                return o1.task.priority - o2.task.priority;
-            }
-        }
-
         //Queue to hold task as submitted by client call
-        private PriorityQueue<Main.TaskExecutorSvc.CompletableFutureTask> tasksSubmittedByClient = new PriorityQueue<>(new TaskComparator());
+        private ConcurrentLinkedQueue<CompletableFutureTask> tasksSubmittedByClient = new ConcurrentLinkedQueue<>();
         //private ConcurrentLinkedQueue<CompletableFutureTask> taskPicked = new ConcurrentLinkedQueue<>();
 
         /*public class TaskExecutor implements Callable<String> {
@@ -159,16 +148,15 @@ public class Main {
             @Override
             public void run() {
                 while (!isStop) {
-                    Main.TaskExecutorSvc.CompletableFutureTask cft = tasksSubmittedByClient.peek();
+                    CompletableFutureTask cft = tasksSubmittedByClient.peek();
                     if (null != cft) {
                         if (!taskGroupUUIDSet.contains(cft.task.taskGroup.groupUUID)) {
                             tasksSubmittedByClient.poll();
                             taskGroupUUIDSet.add(cft.task.taskGroup.groupUUID);
                             taskCompletetionSvc.submit(cft.task.taskAction);
-                            //System.out.println(String.format("Task %s priority %s of group %s submitted for execution", cft.task.taskUUID, cft.task.priority, cft.task.taskGroup.groupUUID));
+                            System.out.println(String.format("Task %s of group %s submitted for execution", cft.task.taskUUID, cft.task.taskGroup.groupUUID));
                             //taskPicked.add(cft);
                         } else {
-                            tasksSubmittedByClient.add(tasksSubmittedByClient.poll());
                             System.out.println(String.format("Previous Task of same group %s currently in execution", cft.task.taskGroup.groupUUID));
                         }
                     }
@@ -184,7 +172,7 @@ public class Main {
         public <T> Future<T> submitTask(Main.Task<T> task) {
             CompletableFuture<T> future = new CompletableFuture<>();
             //new class that will hold this future and task both
-            Main.TaskExecutorSvc.CompletableFutureTask cft = new Main.TaskExecutorSvc.CompletableFutureTask(task, future);
+            CompletableFutureTask cft = new CompletableFutureTask(task, future);
             tasksSubmittedByClient.add(cft);
             return future;
         }
@@ -203,10 +191,10 @@ public class Main {
         //create 10 task, assign Taskgroup to these Tasks
         String taskName = "task";
         for (int i=0;i<10;i++) {
-            Main.TaskGroup taskGroup = i%3==0?taskGroup1:taskGroup2;
-            int sleep = i%2==0?50:2000;
-            Main.TaskAction action = new Main.TaskAction(taskName+i, taskGroup.groupUUID, sleep);
-            Main.Task task = new Main.Task(UUID.randomUUID(), taskGroup, Main.TaskType.READ, action, i);
+            TaskGroup taskGroup = i%3==0?taskGroup1:taskGroup2;
+            int sleep = i%2==0?50:200;
+            TaskAction action = new Main.TaskAction(taskName+i, taskGroup.groupUUID, sleep);
+            Task task = new Main.Task(UUID.randomUUID(), taskGroup, Main.TaskType.READ, action);
             action.setTask(task);
             taskList.add(task);
         }
